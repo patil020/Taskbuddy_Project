@@ -1,8 +1,10 @@
 FROM node:18 AS builder
 WORKDIR /app
-COPY frontend/package*.json ./
+
+COPY package*.json ./
 RUN npm ci
-COPY frontend/ .
+
+COPY . .
 RUN npm run build
 
 FROM nginx:stable-alpine

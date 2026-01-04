@@ -17,20 +17,13 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+          cache: maven
 
-      - name: Cache Maven packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-m2-
-
-      - name: Build with Maven
+      - name: Build with Maven (run tests)
         working-directory: backend
         run: mvn -B -DskipTests=false clean package
 
-      - name: Upload backend artifact
+      - name: Upload backend artifact (jar)
         uses: actions/upload-artifact@v4
         with:
           name: backend-jar
@@ -53,7 +46,7 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Run frontend tests
+      - name: Run frontend tests (if present)
         working-directory: frontend
         run: npm test --if-present
 
@@ -61,7 +54,7 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      - name: Upload frontend artifact
+      - name: Upload frontend artifact (dist)
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
@@ -75,8 +68,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Multi-arch build support (optional but safe)
-      - name: Set up QEMU
+      # Bring build outputs into this job (new runner)
+      - name: Download backend jar artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/target
+
+      - name: Download frontend dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Set up QEMU (optional)
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
@@ -91,23 +96,19 @@ jobs:
       - name: Build & push backend image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
+          context: .
+          file: backend/Dockerfile
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/taskbuddy-backend:${{ github.sha }}
             ${{ secrets.DOCKERHUB_USERNAME }}/taskbuddy-backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build & push frontend image
         uses: docker/build-push-action@v6
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
+          context: frontend
+          file: frontend/Dockerfile
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/taskbuddy-frontend:${{ github.sha }}
             ${{ secrets.DOCKERHUB_USERNAME }}/taskbuddy-frontend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
